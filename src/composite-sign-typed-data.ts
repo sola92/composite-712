@@ -296,6 +296,8 @@ async function main() {
     messages,
   });
 
+  console.log("Signature", result);
+
   for (let i = 0; i < messages.length; i++) {
     const recovered = recoverCompositeTypedDataSig({
       chainId,
