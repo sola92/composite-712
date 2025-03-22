@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 contract Verifier {
-    string private constant DOMAIN_NAME = "EIP-XXXX-CompositeMessage";
+    string private constant DOMAIN_NAME = "EIP-XXXX";
     string private constant DOMAIN_VERSION = "1.0.0";
 
     bytes32 private immutable COMPOSITE_DOMAIN_SEPARATOR;
@@ -45,7 +45,7 @@ contract Verifier {
     ) public pure returns (bool) {
         bytes32 computedHash = messageHash;
 
-        for (uint256 i = 0; i < proof.length; i++) {
+        for (uint256 i = 0; i < proof.length; ++i) {
             bytes32 proofElement = proof[i];
 
             if (computedHash < proofElement) {

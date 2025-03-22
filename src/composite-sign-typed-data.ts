@@ -10,7 +10,7 @@ const COMPOSITE_MESSAGE_DOMAIN_TYPES: Eip712TypeDetails[] = [
   { name: "chainId", type: "uint256" },
 ];
 
-const COMPOSITE_MESSAGE_DOMAIN_NAME = "EIP-XXXX-CompositeMessage";
+const COMPOSITE_MESSAGE_DOMAIN_NAME = "EIP-XXXX";
 const COMPOSITE_MESSAGE_DOMAIN_VERSION = "1.0.0";
 
 type MerkleProof = ReadonlyArray<`0x${string}`>;

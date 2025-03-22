@@ -12,7 +12,7 @@ describe("SolidityTests", function () {
   let otherAccount: SignerWithAddress;
 
   const domain: TypedDataDomain = {
-    name: "EIP-XXXX-CompositeMessage",
+    name: "EIP-XXXX",
     version: "1.0.0",
   };
 
@@ -48,15 +48,12 @@ describe("SolidityTests", function () {
 
   it("should verify a composite signature", async function () {
     const messageHashes = messages.map(getMessageHash);
-
     const tree = new MerkleTree(messageHashes, keccak256, {
       sortPairs: true,
     });
-
     const merkleRoot = `0x${tree.getRoot().toString("hex")}`;
-
     const compositeMessage = {
-      merkleRoot: merkleRoot,
+      merkleRoot,
     };
 
     const signature = await signer.signTypedData(
@@ -82,15 +79,13 @@ describe("SolidityTests", function () {
 
   it("should reject an invalid proof", async function () {
     const messageHashes = messages.map(getMessageHash);
-
     const tree = new MerkleTree(messageHashes, keccak256, {
       sortPairs: true,
     });
 
     const merkleRoot = `0x${tree.getRoot().toString("hex")}`;
-
     const compositeMessage = {
-      merkleRoot: merkleRoot,
+      merkleRoot,
     };
 
     const signature = await signer.signTypedData(
@@ -120,15 +115,13 @@ describe("SolidityTests", function () {
 
   it("should verify all messages in the Merkle tree", async function () {
     const messageHashes = messages.map(getMessageHash);
-
     const tree = new MerkleTree(messageHashes, keccak256, {
       sortPairs: true,
     });
 
     const merkleRoot = `0x${tree.getRoot().toString("hex")}`;
-
     const compositeMessage = {
-      merkleRoot: merkleRoot,
+      merkleRoot,
     };
 
     const signature = await signer.signTypedData(
@@ -157,13 +150,11 @@ describe("SolidityTests", function () {
 
   it("should reject a signature from a different signer", async function () {
     const messageHashes = messages.map(getMessageHash);
-
     const tree = new MerkleTree(messageHashes, keccak256, {
       sortPairs: true,
     });
 
     const merkleRoot = `0x${tree.getRoot().toString("hex")}`;
-
     const compositeMessage = {
       merkleRoot: merkleRoot,
     };
