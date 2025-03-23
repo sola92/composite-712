@@ -16,7 +16,7 @@ const COMPOSITE_MESSAGE_DOMAIN_VERSION = "1.0.0";
 type MerkleProof = ReadonlyArray<`0x${string}`>;
 
 /**
- * Signs multiple EIP-712 typed data messages with a single signature using a Merkle tree.
+ * Signs multiple EIP-712 typed data messages with a single signature.
  *
  * This function creates a Merkle tree from the hashes of multiple EIP-712 typed data messages,
  * then signs the Merkle root to produce a single signature that can validate any of the individual messages.
@@ -51,9 +51,7 @@ async function signCompositeTypedData(args: {
   );
 
   const tree = new MerkleTree(messageHashes as Array<Buffer>, keccak256, {
-    // sort: true,
     sortPairs: true,
-    // complete: true,
   });
 
   const merkleRoot = tree.getRoot().toString("hex");
@@ -295,8 +293,6 @@ async function main() {
     privateKey: Buffer.from(wallet.privateKey.slice(2), "hex"),
     messages,
   });
-
-  console.log("Signature", result);
 
   for (let i = 0; i < messages.length; i++) {
     const recovered = recoverCompositeTypedDataSig({

@@ -6,7 +6,6 @@ contract Verifier {
     string private constant DOMAIN_VERSION = "1.0.0";
 
     bytes32 private immutable COMPOSITE_DOMAIN_SEPARATOR;
-
     bytes32 private constant COMPOSITE_MESSAGE_TYPEHASH =
         keccak256("CompositeMessage(bytes32 merkleRoot)");
 
@@ -30,11 +29,9 @@ contract Verifier {
         bytes32 structHash = keccak256(
             abi.encode(COMPOSITE_MESSAGE_TYPEHASH, merkleRoot)
         );
-
         bytes32 digest = keccak256(
             abi.encodePacked("\x19\x01", COMPOSITE_DOMAIN_SEPARATOR, structHash)
         );
-
         return recover(digest, signature);
     }
 
@@ -43,23 +40,22 @@ contract Verifier {
         bytes32[] calldata proof,
         bytes32 root
     ) public pure returns (bool) {
-        bytes32 computedHash = messageHash;
+        bytes32 computedRoot = messageHash;
 
         for (uint256 i = 0; i < proof.length; ++i) {
             bytes32 proofElement = proof[i];
-
-            if (computedHash < proofElement) {
-                computedHash = keccak256(
-                    abi.encodePacked(computedHash, proofElement)
+            if (computedRoot < proofElement) {
+                computedRoot = keccak256(
+                    abi.encodePacked(computedRoot, proofElement)
                 );
             } else {
-                computedHash = keccak256(
-                    abi.encodePacked(proofElement, computedHash)
+                computedRoot = keccak256(
+                    abi.encodePacked(proofElement, computedRoot)
                 );
             }
         }
 
-        return computedHash == root;
+        return computedRoot == root;
     }
 
     function verifyCompositeSignature(
@@ -77,7 +73,6 @@ contract Verifier {
             merkleRoot,
             signature
         );
-
         return signer == expectedSigner;
     }
 
