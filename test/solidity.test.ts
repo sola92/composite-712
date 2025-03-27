@@ -1,180 +1,179 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { Verifier } from "../typechain-types";
+import { ExampleVerifier } from "../typechain-types";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { MerkleTree } from "merkletreejs";
 import { keccak256 } from "@ethersproject/keccak256";
-import { TypedDataDomain, TypedDataField } from "ethers";
 
 describe("SolidityTests", function () {
-  let verifier: Verifier;
+  let verifier: ExampleVerifier;
   let signer: SignerWithAddress;
   let otherAccount: SignerWithAddress;
+  let signerWallet: ethers.Wallet;
+  let otherWallet: ethers.Wallet;
 
-  const domain: TypedDataDomain = {
-    name: "EIP-XXXX",
-    version: "1.0.0",
-  };
-
-  const types = {
-    CompositeMessage: [{ name: "merkleRoot", type: "bytes32" }],
-  };
-
-  const messages = [
-    { content: "Message 1", timestamp: 1625097600 },
-    { content: "Message 2", timestamp: 1625184000 },
-    { content: "Message 3", timestamp: 1625270400 },
+  const orders = [
+    {
+      orderId: ethers.id("order1"),
+      user: "0x1234567890123456789012345678901234567890",
+    },
+    {
+      orderId: ethers.id("order2"),
+      user: "0x2345678901234567890123456789012345678901",
+    },
+    {
+      orderId: ethers.id("order3"),
+      user: "0x3456789012345678901234567890123456789012",
+    },
   ];
 
-  function getMessageHash(message: any): Buffer {
-    const encodedMessage = ethers.solidityPacked(
-      ["string", "uint256"],
-      [message.content, message.timestamp]
+  async function getOrderHash(order: {
+    orderId: string;
+    user: string;
+  }): Promise<Buffer> {
+    const contractHash = await verifier.debugGenerateMessageHash(
+      order.orderId,
+      order.user
     );
-
-    return Buffer.from(keccak256(encodedMessage).slice(2), "hex");
+    return Buffer.from(contractHash.slice(2), "hex");
   }
 
   beforeEach(async function () {
-    const VerifierFactory = await ethers.getContractFactory("Verifier");
+    const VerifierFactory = await ethers.getContractFactory("ExampleVerifier");
     verifier = await VerifierFactory.deploy();
     await verifier.waitForDeployment();
 
     [signer, otherAccount] = await ethers.getSigners();
 
-    const network = await ethers.provider.getNetwork();
-    domain.chainId = network.chainId;
+    signerWallet = ethers.Wallet.createRandom().connect(ethers.provider);
+    otherWallet = ethers.Wallet.createRandom().connect(ethers.provider);
+
+    orders[0].user = signerWallet.address;
+    orders[1].user = signerWallet.address;
+    orders[2].user = signerWallet.address;
   });
 
-  it("should verify a composite signature", async function () {
-    const messageHashes = messages.map(getMessageHash);
-    const tree = new MerkleTree(messageHashes, keccak256, {
+  it("should successfully place an order with a composite signature", async function () {
+    const orderHashes = await Promise.all(orders.map(getOrderHash));
+    const tree = new MerkleTree(orderHashes, keccak256, {
       sortPairs: true,
     });
     const merkleRoot = `0x${tree.getRoot().toString("hex")}`;
-    const compositeMessage = {
-      merkleRoot,
-    };
-
-    const signature = await signer.signTypedData(
-      domain,
-      types,
-      compositeMessage
-    );
+    const signature = signerWallet.signingKey.sign(tree.getRoot()).serialized;
 
     const proof = tree
-      .getProof(messageHashes[0])
+      .getProof(orderHashes[0])
       .map((p) => `0x${p.data.toString("hex")}`);
 
-    const isValid = await verifier.verifyCompositeSignature(
-      `0x${messageHashes[0].toString("hex")}`,
-      proof,
-      merkleRoot,
-      signature,
-      signer.address
-    );
-
-    expect(isValid).to.be.true;
+    await expect(
+      verifier.placeOrder(
+        orders[0].orderId,
+        signerWallet.address,
+        signature,
+        merkleRoot,
+        proof
+      )
+    ).to.not.be.reverted;
   });
 
-  it("should reject an invalid proof", async function () {
-    const messageHashes = messages.map(getMessageHash);
-    const tree = new MerkleTree(messageHashes, keccak256, {
+  it("should reject an order with invalid proof", async function () {
+    const orderHashes = await Promise.all(orders.map(getOrderHash));
+    const tree = new MerkleTree(orderHashes, keccak256, {
       sortPairs: true,
     });
-
     const merkleRoot = `0x${tree.getRoot().toString("hex")}`;
-    const compositeMessage = {
-      merkleRoot,
-    };
+    const signature = signerWallet.signingKey.sign(tree.getRoot()).serialized;
 
-    const signature = await signer.signTypedData(
-      domain,
-      types,
-      compositeMessage
-    );
-
-    const invalidMessageHash = keccak256(
-      ethers.solidityPacked(["string"], ["Invalid message"])
-    );
-
+    // Use a valid proof but for a different order ID (intentionally wrong)
+    const invalidOrderId = ethers.id("invalid-order");
     const proof = tree
-      .getProof(messageHashes[0])
+      .getProof(orderHashes[0])
       .map((p) => `0x${p.data.toString("hex")}`);
 
-    const isValid = await verifier.verifyCompositeSignature(
-      invalidMessageHash,
-      proof,
-      merkleRoot,
-      signature,
-      signer.address
-    );
-
-    expect(isValid).to.be.false;
+    await expect(
+      verifier.placeOrder(
+        invalidOrderId,
+        signerWallet.address,
+        signature,
+        merkleRoot,
+        proof
+      )
+    ).to.be.revertedWithCustomError(verifier, "NotInTree");
   });
 
-  it("should verify all messages in the Merkle tree", async function () {
-    const messageHashes = messages.map(getMessageHash);
-    const tree = new MerkleTree(messageHashes, keccak256, {
+  it("should directly sign and verify a single-element merkle tree", async function () {
+    const order = orders[0];
+    const messageHash = await verifier.debugGenerateMessageHash(
+      order.orderId,
+      order.user
+    );
+    const leaf = Buffer.from(messageHash.slice(2), "hex");
+    const tree = new MerkleTree([leaf], keccak256, { sortPairs: true });
+    const merkleRoot = `0x${tree.getRoot().toString("hex")}`;
+    const signature = signerWallet.signingKey.sign(tree.getRoot()).serialized;
+
+    await expect(
+      verifier.placeOrder(
+        order.orderId,
+        signerWallet.address,
+        signature,
+        merkleRoot,
+        // Proof for a single element tree is empty...
+        [] as string[]
+      )
+    ).to.not.be.reverted;
+  });
+
+  it("should verify all orders with the same signature", async function () {
+    const orderHashes = await Promise.all(orders.map(getOrderHash));
+    const tree = new MerkleTree(orderHashes, keccak256, {
       sortPairs: true,
     });
-
     const merkleRoot = `0x${tree.getRoot().toString("hex")}`;
-    const compositeMessage = {
-      merkleRoot,
-    };
+    const signature = signerWallet.signingKey.sign(tree.getRoot()).serialized;
 
-    const signature = await signer.signTypedData(
-      domain,
-      types,
-      compositeMessage
-    );
-
-    for (let i = 0; i < messageHashes.length; i++) {
-      const messageHash = `0x${messageHashes[i].toString("hex")}`;
+    // Verify each order works with the same signature
+    for (let i = 0; i < orders.length; i++) {
       const proof = tree
-        .getProof(messageHashes[i])
+        .getProof(orderHashes[i])
         .map((p) => `0x${p.data.toString("hex")}`);
 
-      const isValid = await verifier.verifyCompositeSignature(
-        messageHash,
-        proof,
-        merkleRoot,
-        signature,
-        signer.address
-      );
-
-      expect(isValid).to.be.true;
+      await expect(
+        verifier.placeOrder(
+          orders[i].orderId,
+          signerWallet.address,
+          signature,
+          merkleRoot,
+          proof
+        )
+      ).to.not.be.reverted;
     }
   });
 
   it("should reject a signature from a different signer", async function () {
-    const messageHashes = messages.map(getMessageHash);
-    const tree = new MerkleTree(messageHashes, keccak256, {
+    const orderHashes = await Promise.all(orders.map(getOrderHash));
+    const tree = new MerkleTree(orderHashes, keccak256, {
       sortPairs: true,
     });
-
     const merkleRoot = `0x${tree.getRoot().toString("hex")}`;
-    const compositeMessage = {
-      merkleRoot: merkleRoot,
-    };
 
-    const signature = await otherAccount.signTypedData(
-      domain,
-      types,
-      compositeMessage
-    );
+    // Sign with the other wallet (different than the one in the order.user field)
+    const wrongSignature = otherWallet.signingKey.sign(
+      tree.getRoot()
+    ).serialized;
 
     const proof = tree
-      .getProof(messageHashes[0])
+      .getProof(orderHashes[0])
       .map((p) => `0x${p.data.toString("hex")}`);
 
-    const recoveredSigner = await verifier.recoverSignerFromCompositeSignature(
-      merkleRoot,
-      signature
-    );
-
-    expect(recoveredSigner).to.equal(otherAccount.address);
-    expect(recoveredSigner).to.not.equal(signer.address);
+    await expect(
+      verifier.placeOrder(
+        orders[0].orderId,
+        signerWallet.address, // The actual order owner
+        wrongSignature,
+        merkleRoot,
+        proof
+      )
+    ).to.be.revertedWithCustomError(verifier, "Unauthorized");
   });
 });

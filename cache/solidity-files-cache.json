@@ -1,10 +1,10 @@
 {
   "_format": "hh-sol-cache-2",
   "files": {
-    "/Users/sola/mars/composite-712/contracts/Verifier.sol": {
-      "lastModificationDate": 1742600644538,
-      "contentHash": "bf155f87c177aad3ff764d3ed26342fc",
-      "sourceName": "contracts/Verifier.sol",
+    "/Users/sola/mars/composite-712/contracts/ExampleVerifier.sol": {
+      "lastModificationDate": 1743118330473,
+      "contentHash": "62a3de70a00380e63af6f357d49b1d4c",
+      "sourceName": "contracts/ExampleVerifier.sol",
       "solcConfig": {
         "version": "0.8.20",
         "settings": {
@@ -34,7 +34,7 @@
         "^0.8.20"
       ],
       "artifacts": [
-        "Verifier"
+        "ExampleVerifier"
       ]
     }
   }

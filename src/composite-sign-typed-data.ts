@@ -1,17 +1,13 @@
 import { ethers } from "ethers";
 import { MerkleTree } from "merkletreejs";
 import { keccak256 } from "@ethersproject/keccak256";
-import { Eip712TypedData, Eip712TypeDetails } from "web3";
-import * as sigUtil from "eth-sig-util";
-
-const COMPOSITE_MESSAGE_DOMAIN_TYPES: Eip712TypeDetails[] = [
-  { name: "name", type: "string" },
-  { name: "version", type: "string" },
-  { name: "chainId", type: "uint256" },
-];
-
-const COMPOSITE_MESSAGE_DOMAIN_NAME = "EIP-XXXX";
-const COMPOSITE_MESSAGE_DOMAIN_VERSION = "1.0.0";
+import { Eip712TypedData } from "web3";
+import {
+  ecrecover,
+  fromRpcSig,
+  publicToAddress,
+  bytesToHex,
+} from "@ethereumjs/util";
 
 type MerkleProof = ReadonlyArray<`0x${string}`>;
 
@@ -22,13 +18,11 @@ type MerkleProof = ReadonlyArray<`0x${string}`>;
  * then signs the Merkle root to produce a single signature that can validate any of the individual messages.
  *
  * @param args - The arguments for the function
- * @param args.chainId - The chain ID to use in the composite signature domain
  * @param args.privateKey - The private key to sign with
  * @param args.messages - Array of EIP-712 typed data messages to include in the composite signature
  * @returns Object containing the signature, Merkle root, and proofs for each message
  */
 async function signCompositeTypedData(args: {
-  readonly chainId: number;
   readonly privateKey: Buffer;
   readonly messages: ReadonlyArray<Eip712TypedData>;
 }): Promise<{
@@ -36,7 +30,7 @@ async function signCompositeTypedData(args: {
   readonly merkleRoot: `0x${string}`;
   readonly proofs: ReadonlyArray<MerkleProof>;
 }> {
-  const { chainId, privateKey, messages } = args;
+  const { privateKey, messages } = args;
   const messageHashes: ReadonlyArray<Buffer> = messages.map(
     ({ message, domain, types }) => {
       const { EIP712Domain, ...typesWithoutDomain } = types;
@@ -54,29 +48,9 @@ async function signCompositeTypedData(args: {
     sortPairs: true,
   });
 
-  const merkleRoot = tree.getRoot().toString("hex");
-  const compositeMessage: sigUtil.TypedMessage<{
-    EIP712Domain: Eip712TypeDetails[];
-    CompositeMessage: Eip712TypeDetails[];
-  }> = {
-    types: {
-      EIP712Domain: COMPOSITE_MESSAGE_DOMAIN_TYPES,
-      CompositeMessage: [{ name: "merkleRoot", type: "bytes32" }],
-    },
-    primaryType: "CompositeMessage",
-    domain: {
-      name: COMPOSITE_MESSAGE_DOMAIN_NAME,
-      version: COMPOSITE_MESSAGE_DOMAIN_VERSION,
-      chainId,
-    },
-    message: {
-      merkleRoot: `0x${merkleRoot}`,
-    },
-  };
-
-  const compositeSignature = sigUtil.signTypedData_v4(privateKey, {
-    data: compositeMessage,
-  });
+  const merkleRoot = tree.getRoot();
+  const wallet = new ethers.Wallet(`0x${privateKey.toString("hex")}`);
+  const signature = wallet.signingKey.sign(merkleRoot);
 
   const proofs: ReadonlyArray<MerkleProof> = messageHashes.map((hash) =>
     tree
@@ -85,8 +59,8 @@ async function signCompositeTypedData(args: {
   );
 
   return {
-    signature: compositeSignature as `0x${string}`,
-    merkleRoot: `0x${merkleRoot}`,
+    signature: signature.serialized as `0x${string}`,
+    merkleRoot: `0x${merkleRoot.toString("hex")}`,
     proofs,
   };
 }
@@ -99,7 +73,6 @@ async function signCompositeTypedData(args: {
  * 2. Recovering the signer from the composite signature
  *
  * @param args - The arguments for the function
- * @param args.chainId - The chain ID used in the composite signature domain
  * @param args.signature - The signature produced by signCompositeTypedData
  * @param args.merkleRoot - The Merkle root of all signed messages
  * @param args.proof - The Merkle proof for the specific message being verified
@@ -107,13 +80,12 @@ async function signCompositeTypedData(args: {
  * @returns The recovered signer address as a 0x-prefixed string, or undefined if the signature or proof is invalid
  */
 function recoverCompositeTypedDataSig(args: {
-  readonly chainId: number;
   readonly signature: `0x${string}`;
   readonly merkleRoot: `0x${string}`;
   readonly proof: MerkleProof;
   readonly message: Eip712TypedData;
 }): `0x${string}` | undefined {
-  const { chainId, signature, message } = args;
+  const { signature, message } = args;
 
   const { EIP712Domain, ...typesWithoutDomain } = message.types;
   const leafHex = ethers.TypedDataEncoder.hash(
@@ -143,31 +115,9 @@ function recoverCompositeTypedDataSig(args: {
     return;
   }
 
-  const compositeMessage: sigUtil.TypedMessage<{
-    readonly EIP712Domain: Eip712TypeDetails[];
-    readonly CompositeMessage: Eip712TypeDetails[];
-  }> = {
-    types: {
-      EIP712Domain: COMPOSITE_MESSAGE_DOMAIN_TYPES,
-      CompositeMessage: [{ name: "merkleRoot", type: "bytes32" }],
-    },
-    primaryType: "CompositeMessage",
-    domain: {
-      name: COMPOSITE_MESSAGE_DOMAIN_NAME,
-      version: COMPOSITE_MESSAGE_DOMAIN_VERSION,
-      chainId,
-    },
-    message: {
-      merkleRoot,
-    },
-  };
-
-  const recovered = sigUtil.recoverTypedSignature({
-    data: compositeMessage,
-    sig: signature,
-  });
-
-  return recovered as `0x${string}`;
+  const sigParams = fromRpcSig(signature);
+  const pubKey = ecrecover(merkleRoot, sigParams.v, sigParams.r, sigParams.s);
+  return bytesToHex(publicToAddress(pubKey)) as `0x${string}`;
 }
 
 async function main() {
@@ -286,17 +236,40 @@ async function main() {
     },
   ];
 
+  const nonMessage = {
+    types: {
+      EIP712Domain: [
+        { name: "name", type: "string" },
+        { name: "version", type: "string" },
+        { name: "chainId", type: "uint256" },
+        { name: "verifyingContract", type: "address" },
+      ],
+      Transfer: [
+        { name: "amount", type: "uint256" },
+        { name: "recipient", type: "address" },
+      ],
+    },
+    primaryType: "Transfer",
+    domain: {
+      name: "Ether Mail",
+      version: "1",
+      chainId: 1,
+      verifyingContract: "0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC",
+    },
+    message: {
+      amount: "4000000000000000000",
+      recipient: "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB",
+    },
+  };
+
   const wallet = ethers.Wallet.createRandom();
-  const chainId = 1;
   const result = await signCompositeTypedData({
-    chainId,
     privateKey: Buffer.from(wallet.privateKey.slice(2), "hex"),
     messages,
   });
 
   for (let i = 0; i < messages.length; i++) {
     const recovered = recoverCompositeTypedDataSig({
-      chainId,
       signature: result.signature,
       merkleRoot: result.merkleRoot,
       proof: result.proofs[i],
@@ -311,6 +284,19 @@ async function main() {
   }
 
   console.log("All messages recovered ✅");
+
+  const nonRecovered = recoverCompositeTypedDataSig({
+    signature: result.signature,
+    merkleRoot: result.merkleRoot,
+    proof: result.proofs[0],
+    message: nonMessage,
+  });
+
+  if (nonRecovered != null) {
+    throw new Error("Non-message recovered ❌");
+  }
+
+  console.log("Non-message not recovered ✅");
 }
 
 main();

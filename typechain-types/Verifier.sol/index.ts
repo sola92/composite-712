@@ -2,5 +2,3 @@
 /* tslint:disable */
 /* eslint-disable */
 export type { ExampleVerifier } from "./ExampleVerifier";
-export * as factories from "./factories";
-export { ExampleVerifier__factory } from "./factories/ExampleVerifier__factory";
