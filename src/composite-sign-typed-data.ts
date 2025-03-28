@@ -8,6 +8,7 @@ import {
   publicToAddress,
   bytesToHex,
 } from "@ethereumjs/util";
+import * as sigUtil from "eth-sig-util";
 
 type MerkleProof = ReadonlyArray<`0x${string}`>;
 
@@ -22,7 +23,7 @@ type MerkleProof = ReadonlyArray<`0x${string}`>;
  * @param args.messages - Array of EIP-712 typed data messages to include in the composite signature
  * @returns Object containing the signature, Merkle root, and proofs for each message
  */
-async function signCompositeTypedData(args: {
+async function eth_signCompositeTypedData(args: {
   readonly privateKey: Buffer;
   readonly messages: ReadonlyArray<Eip712TypedData>;
 }): Promise<{
@@ -73,7 +74,7 @@ async function signCompositeTypedData(args: {
  * 2. Recovering the signer from the composite signature
  *
  * @param args - The arguments for the function
- * @param args.signature - The signature produced by signCompositeTypedData
+ * @param args.signature - The signature produced by eth_signCompositeTypedData
  * @param args.merkleRoot - The Merkle root of all signed messages
  * @param args.proof - The Merkle proof for the specific message being verified
  * @param args.message - The EIP-712 typed data message to verify
@@ -263,7 +264,7 @@ async function main() {
   };
 
   const wallet = ethers.Wallet.createRandom();
-  const result = await signCompositeTypedData({
+  const result = await eth_signCompositeTypedData({
     privateKey: Buffer.from(wallet.privateKey.slice(2), "hex"),
     messages,
   });
@@ -297,6 +298,24 @@ async function main() {
   }
 
   console.log("Non-message not recovered ✅");
+
+  const singleMessage = await eth_signCompositeTypedData({
+    privateKey: Buffer.from(wallet.privateKey.slice(2), "hex"),
+    messages: [messages[0]],
+  });
+
+  const singleMessageSig = sigUtil.signTypedData_v4(
+    Buffer.from(wallet.privateKey.slice(2), "hex"),
+    {
+      data: messages[0],
+    }
+  );
+
+  if (singleMessage.signature != singleMessageSig) {
+    throw new Error("Single message signature does not match");
+  }
+
+  console.log("Single message signature matches ✅");
 }
 
 main();
