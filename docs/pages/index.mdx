@@ -1,0 +1,111 @@
+# Overview
+
+![ERC-7920](/425788292-8b73583d-3416-471c-ae4a-b4ce26176f80.png)
+
+ERC-7920 brings a significant UX improvement to off-chain signatures.
+
+It allows users to sign multiple EIP-712 messages with a single, verifiable signature. This eliminates consecutive off-chain signature prompts, reducing user friction and improving UX.
+
+## Motivation
+
+Off-chain signatures are the hallmark of modern Ethereum apps: Hyperliquid, Wallet Sign In, UniswapV4 (Permit2), etc. They allow developers to safely interact with EOAs without relying on state-modification, which is often costly, slow, and requires the EOA to hold ETH.
+
+### Single Signature
+
+A single signature attests to multiple messages.
+
+### Isolated Verification
+
+Signed messages are independently verifiable, without knowledge of others.
+
+### Human-readable
+
+Know what you're signing: all the visibility benefits of EIP-712 are preserved. Giving wallets and EOAs insight into what is being signed.
+
+### Compatible with regular EIP-712 signatures
+
+Regular EIP-712 signatures remain valid as "batch messages of 1". This allows ERC7920-aware apps to validate signatures regardless of if they signed with ERC-7920 or regular EIP-712.
+
+## Specification
+
+ERC-7920 uses a Merkle tree to hash multiple typed-data messages together under a single root. The user signs only the Merkle root. The process is described below.
+
+### Generating a Composite Signature
+
+1. For a set of messages `[m₁, m₂, ..., mₙ]`, encode each using EIP-712's `encode` and compute its hash:
+
+   ```
+   hashₙ = keccak256(encode(mₙ))
+   ```
+
+2. Use these message hashes as leaf nodes in a Merkle tree and compute a `merkleRoot`
+
+3. Sign the merkle root.
+   ```
+   signature = sign(merkleRoot)
+   ```
+
+### Verification Process
+
+To verify that an individual message `mₓ` was included in a composite signature:
+
+1. Verify the signature on the `merkleRoot`:
+
+   ```
+   recoveredSigner = ecrecover(merkleRoot, signature)
+   isValidSignature = (recoveredSigner == expectedSigner)
+   ```
+
+2. Compute the leaf node for message `mₓ` and verify its path to the Merkle root, using the proof:
+   ```
+   leaf = keccak256(encode(mₓ))
+   isValidProof = _verifyMerkleProof(leaf, merkleProof, merkleRoot)
+   ```
+
+Where `_verifyMerkleProof()` is defined as:
+
+```solidity
+function _verifyMerkleProof(
+    bytes32 leaf,
+    bytes32[] calldata proof,
+    bytes32 merkleRoot
+) internal pure returns (bool) {
+    bytes32 computedRoot = leaf;
+    for (uint256 i = 0; i < proof.length; ++i) {
+        if (computedRoot < proof[i]) {
+            computedRoot = keccak256(abi.encode(computedRoot, proof[i]));
+        } else {
+            computedRoot = keccak256(abi.encode(proof[i], computedRoot));
+        }
+    }
+
+    return computedRoot == merkleRoot;
+}
+```
+
+The message is verified if and only if (1) and (2) succeed.
+
+```
+isVerified = isValidSignature && isValidProof
+```
+
+### `eth_signTypedData_v5`
+
+This ERC adds a new method `eth_signTypedData_v5` to Ethereum JSON-RPC. This method allows signing multiple typed data messages with a single signature using the specification described above. The signing account must be unlocked prior.
+
+This method returns: the signature, merkle root, and an array of proofs (each corresponding to an input message).
+
+#### Parameters
+
+1. `Address` - Signing account
+2. `TypedData | TypedDataArray` - A single TypedData object or Array of `TypedData` objects from EIP-712.
+
+##### Returns
+
+```typescript
+{
+  signature: `0x${string}`; // Hex encoded 65 byte signature (same format as eth_sign)
+  merkleRoot: `0x${string}`; // 32 byte Merkle root as hex string
+  proofs: Array<Array<`0x${string}`>>; // Array of Merkle proofs (one for each input message)
+}
+```

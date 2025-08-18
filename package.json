@@ -2,6 +2,7 @@
   "name": "composite-712",
   "version": "1.0.0",
   "main": "index.js",
+  "type": "module",
   "license": "MIT",
   "dependencies": {
     "@ethereumjs/util": "^9.1.0",
@@ -29,17 +30,24 @@
     "ethers": "^6.13.5",
     "hardhat-gas-reporter": "^1.0.8",
     "merkletreejs": "^0.5.1",
+    "react": "latest",
+    "react-dom": "latest",
     "solidity-coverage": "^0.8.1",
     "typechain": "^8.3.0",
+    "vocs": "latest",
     "web3": "^4.16.0"
   },
   "devDependencies": {
+    "@types/react": "latest",
     "hardhat": "^2.23.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.5"
   },
   "scripts": {
-    "test": "npx hardhat test"
+    "test": "npx hardhat test",
+    "dev": "vocs dev",
+    "build": "vocs build",
+    "preview": "vocs preview"
   },
   "keywords": [],
   "author": "",
