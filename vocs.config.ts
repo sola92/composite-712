@@ -11,6 +11,13 @@ export default defineConfig({
       link: "https://eips.ethereum.org/EIPS/eip-7920",
     },
   ],
+  ogImageUrl: "https://erc7920.org/assets/og.png",
+  description: "Batch off-chain signatures",
+  editLink: {
+    pattern:
+      "https://github.com/sola92/composite-712/edit/main/docs/pages/:path",
+    text: "Edit on GitHub",
+  },
   sidebar: [
     {
       text: "Overview",
