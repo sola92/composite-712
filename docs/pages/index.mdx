@@ -26,6 +26,10 @@ Know what you're signing: all the visibility benefits of EIP-712 are preserved. 
 
 Regular EIP-712 signatures remain valid as "batch messages of 1". This allows ERC7920-aware apps to validate signatures regardless of if they signed with ERC-7920 or regular EIP-712.
 
+### New Verification Modes
+
+Messages can be verified in isolation or aggregate. Apps can require that message (`x`) is only valid when signed in combination message (`y`).
+
 ## Specification
 
 ERC-7920 uses a Merkle tree to hash multiple typed-data messages together under a single root. The user signs only the Merkle root. The process is described below.
