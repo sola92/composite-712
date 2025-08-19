@@ -1,7 +1,7 @@
 import { defineConfig } from "vocs";
 
 export default defineConfig({
-  title: "Docs",
+  title: "ERC-7920",
   theme: {
     accentColor: "#ffab00",
   },
