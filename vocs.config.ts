@@ -11,7 +11,7 @@ export default defineConfig({
       link: "https://eips.ethereum.org/EIPS/eip-7920",
     },
   ],
-  ogImageUrl: "https://erc7920.org/assets/og.png",
+  ogImageUrl: "https://erc7920.org/og.png",
   description: "Batch off-chain signatures",
   editLink: {
     pattern:
