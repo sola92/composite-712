@@ -4,11 +4,11 @@
 
 ERC-7920 brings a significant UX improvement to off-chain signatures.
 
-It allows users to sign multiple EIP-712 messages with a single, verifiable signature. This eliminates consecutive off-chain signature prompts, reducing friction and boosting UX.
+It allows users to sign multiple EIP-712 messages with a single, verifiable signature. This eliminates consecutive signature prompts, reducing friction and boosting UX.
 
 ## Motivation
 
-Off-chain signatures are the hallmark of modern Ethereum apps: Hyperliquid, Wallet Sign In, Payments, UniswapV4 (Permit2), etc. They allow developers to safely interact with EOAs without relying on state-modification, which is often costly, slow, and requires the EOA to hold ETH.
+Off-chain signatures are the hallmark of modern Ethereum apps: Hyperliquid, Polymarket, Wallet Sign In, Payments, UniswapV4 (Permit2), etc. They allow developers to safely interact with EOAs without relying on state-modification, which is often costly, slow, and requires the EOA to hold ETH.
 
 ### Single Signature
 
@@ -16,7 +16,7 @@ A single signature attests to multiple messages.
 
 ### Isolated Verification
 
-Signed messages are independently verifiable, without knowledge of others.
+Signed messages are independently verifiable, without knowledge of other messages included in the signature.
 
 ### Human-readable
 
@@ -28,7 +28,7 @@ Regular EIP-712 signatures remain valid as "batch messages of 1". This allows ER
 
 ### New Verification Modes
 
-Messages can be verified in isolation or aggregate. Apps can require that message (`x`) is only valid when signed in combination message (`y`).
+Messages can be verified in isolation or aggregate. Apps can require that message (`x`) is only valid when signed in combination with message (`y`).
 
 ## Specification
 
